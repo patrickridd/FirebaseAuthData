@@ -3,6 +3,18 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-06-13
+
+### Changed
+- Raised the `firebase-ios-sdk` dependency floor to `12.14.0` (was `11.0.0`)
+  to align with consumer apps on the Firebase 12 line and keep a single
+  Firebase copy in the dependency graph. No public API or behavior changes.
+
+### Upgrade notes
+- Consumers must also move their direct `firebase-ios-sdk` requirement to
+  `from: "12.14.0"` so SPM resolves one shared Firebase version. After
+  updating, Reset Package Caches and Resolve Package Versions.
+
 ## [1.0.0] - 2026-06-11
 
 ### Added
