@@ -14,7 +14,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/patrickridd/AuthDomain.git", from: "1.0.0"),
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "11.0.0"),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.14.0"),
     ],
     targets: [
         .target(
