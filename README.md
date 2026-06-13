@@ -82,10 +82,10 @@ struct MyApp: App {
 | Email + password sign-up (sets display name) | ✅ |
 | Password reset | ✅ |
 | Friendly error mapping (`AuthErrorCode` → `AuthServiceError`) | ✅ |
-| Social sign-in (Apple, Google, Facebook) | ⏳ throws `.notImplemented` for now |
+| Social sign-in (Apple, Google, Facebook) | ⏳ throws `.notImplemented` (planned for `1.2.0`) |
 
 Social providers require their own SDKs (Sign in with Apple, GoogleSignIn) to
-produce an `AuthCredential`; those are wired in a follow-up.
+produce an `AuthCredential`; those are wired in the `1.2.0` release.
 
 ## Versioning
 

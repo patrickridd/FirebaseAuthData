@@ -3,7 +3,7 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.1] - 2026-06-13
+## [1.1.0] - 2026-06-13
 
 ### Changed
 - Raised the `firebase-ios-sdk` dependency floor to `12.14.0` (was `11.0.0`)
@@ -37,4 +37,4 @@ adheres to [Semantic Versioning](https://semver.org/).
 ### Not yet implemented
 - Social sign-in (`signIn(with:)`) currently throws
   `AuthServiceError.notImplemented` per provider. Apple and Google providers
-  are planned for a future minor release once their SDKs are wired in.
+  are planned for the `1.2.0` minor release once their SDKs are wired in.
