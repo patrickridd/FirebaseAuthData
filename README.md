@@ -82,10 +82,33 @@ struct MyApp: App {
 | Email + password sign-up (sets display name) | ✅ |
 | Password reset | ✅ |
 | Friendly error mapping (`AuthErrorCode` → `AuthServiceError`) | ✅ |
-| Social sign-in (Apple, Google, Facebook) | ⏳ throws `.notImplemented` (planned for `1.2.0`) |
+| Social sign-in — Apple | ✅ |
+| Social sign-in — Google | ✅ |
+| Social sign-in — Facebook (Limited Login) | ✅ |
 
-Social providers require their own SDKs (Sign in with Apple, GoogleSignIn) to
-produce an `AuthCredential`; those are wired in the `1.2.0` release.
+All three social providers are fully wired and exchange their native SDK result
+for a Firebase `AuthCredential` behind the backend-agnostic `signIn(with:)` API.
+
+### Facebook uses Limited Login
+
+Facebook sign-in uses **Limited Login**, not classic OAuth. This is required by
+Apple's App Tracking Transparency: without tracking consent the classic flow no
+longer returns a usable access token, so the SDK redirects to
+`limited.facebook.com` and Firebase can't mint a credential from it.
+
+Instead, the coordinator:
+
+1. Generates a random **nonce** per sign-in and sends Facebook its **SHA256
+   hash** via `LoginConfiguration(permissions:tracking: .limited, nonce:)`.
+2. Reads the returned OIDC `AuthenticationToken` (Limited Login does **not**
+   return an access token).
+3. Builds the Firebase credential with the **raw** nonce:
+   `OAuthProvider.credential(providerID: .facebook, idToken:rawNonce:)`.
+
+**Setup:** enable **Facebook** in *Firebase Console ▸ Authentication ▸ Sign-in
+method* with your **App ID + App Secret** — Firebase validates the OIDC token
+against it. Landing on `limited.facebook.com` during sign-in is expected and
+correct.
 
 ## Versioning
 

@@ -3,6 +3,60 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-06-14
+
+### Fixed
+- **Facebook sign-in now uses Limited Login.** Under Apple's App Tracking
+  Transparency, classic Facebook Login no longer returns a usable OAuth access
+  token when the user hasn't granted tracking consent — the SDK silently
+  redirects to `limited.facebook.com` and `result.token` comes back `nil`, so
+  Firebase could not mint a credential and sign-in failed with a missing-token
+  error. `FacebookSignInCoordinator` now requests Limited Login
+  (`LoginConfiguration(permissions:tracking: .limited, nonce:)`) and exchanges
+  the returned OIDC `AuthenticationToken` for a Firebase credential via
+  `OAuthProvider.credential(providerID: .facebook, idToken:rawNonce:)`.
+
+### Security
+- A fresh cryptographically random **nonce** is generated per sign-in. Facebook
+  receives only its SHA256 hash; the raw nonce is handed to Firebase so the
+  returned token is verified as minted for this app (replay protection).
+
+### Upgrade notes
+- Landing on `limited.facebook.com` during the flow is now **expected and
+  correct** — it is no longer an error.
+- Ensure **Facebook is enabled in Firebase Console ▸ Authentication ▸ Sign-in
+  method** with your App ID + App Secret. Firebase validates the Limited Login
+  OIDC token against that configuration; a missing App Secret will reject
+  otherwise-valid sign-ins.
+- No host-app code changes are required; the `signIn(with: .facebook)` call site
+  is unchanged.
+
+## [1.2.0] - 2026-06-13
+
+### Added
+- **Social sign-in is now fully implemented** for all providers via
+  `signIn(with:)`:
+  - **Apple** — native `AuthenticationServices` flow exchanged for a Firebase
+    credential.
+  - **Google** — `GoogleSignIn` SDK flow exchanged for a Firebase credential.
+  - **Facebook** — `FacebookLogin` SDK flow exchanged for a Firebase
+    credential. The Facebook SDK is initialised lazily on first use (never at
+    launch) to avoid startup bundle-ID validation crashes.
+- `FirebaseAuthService.configureFacebook(application:launchOptions:)` and
+  `handleOpenURL(_:options:)` helpers for wiring the Facebook SDK from your
+  `AppDelegate` without importing the SDK in the host app.
+
+### Fixed
+- **User cancellation is now surfaced quietly.** When a user backs out of an
+  Apple, Google, or Facebook sign-in, the coordinators emit a shared
+  cancellation marker instead of a user-facing error message, so the UI can
+  suppress the alert. Real failures are unaffected.
+
+### Changed
+- Migrated the test suite to Swift Testing (`@Suite`/`@Test`/`#expect`) and
+  removed the obsolete "social not implemented" test now that all providers
+  are wired.
+
 ## [1.1.0] - 2026-06-13
 
 ### Changed
