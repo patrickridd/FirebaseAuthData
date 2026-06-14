@@ -225,6 +225,25 @@ public final class FirebaseAuthService: AuthService {
         }
     }
 
+    // MARK: - Sign out
+
+    /// Clears every session the app holds: Firebase, Google, and Facebook.
+    ///
+    /// Firebase sign-out is the only operation that can throw; the social SDK
+    /// sign-outs are best-effort local cache clears and never throw.
+    public func signOut() throws {
+        // Clear social SDK sessions first (local, non-throwing) so a cached
+        // Google/Facebook account isn't silently reused on the next sign-in.
+        GIDSignIn.sharedInstance.signOut()
+        LoginManager().logOut()
+
+        do {
+            try Auth.auth().signOut()
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
     // MARK: - Mapping
 
     private static func mapUser(_ user: User, fallbackName: String? = nil) -> AuthUser {
