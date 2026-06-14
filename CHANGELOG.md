@@ -3,6 +3,25 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-06-14
+
+### Added
+- **`FirebaseAuthService.signOut()`** — clears all three provider sessions in
+  one call: Google (`GIDSignIn.sharedInstance.signOut()`), Facebook
+  (`LoginManager().logOut()`), and Firebase (`Auth.auth().signOut()`). Social
+  SDK sign-outs are local, non-throwing cache clears; only Firebase can throw.
+  Sign in with Apple requires no explicit sign-out (no local session to clear).
+
+### Changed
+- Bumped `AuthDomain` dependency to `from: "1.1.0"` to satisfy the new
+  `signOut() throws` protocol requirement.
+
+### Chore
+- `Package.resolved` is now gitignored (library packages should not pin their
+  transitive dependency graph).
+
+---
+
 ## [1.2.1] - 2026-06-14
 
 ### Fixed
