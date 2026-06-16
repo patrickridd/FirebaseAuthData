@@ -3,6 +3,24 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-06-16
+
+### Added
+- **`FirebaseAuthService.deleteAccount()`** — implements the new `AuthService`
+  protocol requirement. Deletes the current Firebase user and clears all
+  social-SDK sessions (Google + Facebook) on success.
+- **Re-authentication before deletion** — Firebase requires a recent credential
+  for destructive operations. When the provider returns `requiresRecentLogin`,
+  `deleteAccount()` automatically re-authenticates the user with their original
+  provider (Apple, Google, or Facebook) and then retries the deletion. Email+
+  password users are asked to sign out and back in before deleting.
+
+### Changed
+- Bumped `AuthDomain` dependency to `from: "1.3.0"` to satisfy the new
+  `deleteAccount()` protocol requirement.
+
+---
+
 ## [1.3.0] - 2026-06-14
 
 ### Added

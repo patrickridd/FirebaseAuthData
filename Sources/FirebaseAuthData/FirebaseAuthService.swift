@@ -244,6 +244,79 @@ public final class FirebaseAuthService: AuthService {
         }
     }
 
+    // MARK: - Delete account
+
+    /// Permanently deletes the currently signed-in Firebase account.
+    ///
+    /// Firebase requires a *recent* credential before a destructive operation.
+    /// If the provider returns `requiresRecentLogin` we re-authenticate the
+    /// user with the same provider they used to sign in, then retry deletion.
+    public func deleteAccount() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("No signed-in account to delete.")
+        }
+
+        do {
+            try await user.delete()
+            // Clear social SDK sessions on success.
+            GIDSignIn.sharedInstance.signOut()
+            LoginManager().logOut()
+        } catch let error as NSError
+            where AuthErrorCode(rawValue: error.code) == .requiresRecentLogin {
+            // Re-authenticate with the same provider, then retry.
+            try await reAuthenticateAndDelete(user: user)
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    /// Re-authenticates the user using their linked provider, then deletes the
+    /// account. Supports Apple, Google, Facebook, and email+password.
+    @MainActor
+    private func reAuthenticateAndDelete(user: User) async throws {
+        let providerID = user.providerData.first?.providerID ?? ""
+
+        let credential: AuthCredential
+        switch providerID {
+        case "apple.com":
+            let coordinator = AppleSignInCoordinator()
+            let apple = try await coordinator.signIn()
+            credential = OAuthProvider.appleCredential(
+                withIDToken: apple.idToken,
+                rawNonce: apple.rawNonce,
+                fullName: apple.fullName
+            )
+
+        case "google.com":
+            let coordinator = GoogleSignInCoordinator()
+            let google = try await coordinator.signIn()
+            credential = google.credential
+
+        case "facebook.com":
+            try Self.ensureFacebookSDKReady()
+            let coordinator = FacebookSignInCoordinator()
+            let fb = try await coordinator.signIn()
+            credential = fb.credential
+
+        default:
+            // Email+password — Firebase handles re-auth internally when the
+            // user is linked only to the password provider; we surface a clear
+            // message asking them to sign in again.
+            throw AuthServiceError.message(
+                "Please sign out and sign back in before deleting your account."
+            )
+        }
+
+        do {
+            try await user.reauthenticate(with: credential)
+            try await user.delete()
+            GIDSignIn.sharedInstance.signOut()
+            LoginManager().logOut()
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
     // MARK: - Mapping
 
     private static func mapUser(_ user: User, fallbackName: String? = nil) -> AuthUser {
