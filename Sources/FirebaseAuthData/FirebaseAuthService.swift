@@ -390,6 +390,15 @@ public final class FirebaseAuthService: AuthService {
         }
     }
 
+    // NOTE: `migrateProvider(from:to:)` is intentionally NOT overridden here.
+    // AuthDomain provides a protocol-extension default that composes
+    // `linkProvider` (safe, link-first) then `unlinkProvider`. Since both are
+    // fully implemented above — including `requiresRecentLogin` re-auth retry
+    // and the matching SDK-session cleanup on unlink — Firebase inherits a
+    // correct, non-atomic migration for free. An override would only duplicate
+    // those two calls; add one only if Firebase ever exposes a true atomic
+    // swap or needs bespoke cleanup between the link and unlink steps.
+
     /// Re-authenticates the current user with the given provider.
     @MainActor
     public func reauthenticate(with provider: SocialAuthProvider) async throws {
