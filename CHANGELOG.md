@@ -3,6 +3,32 @@
 All notable changes to FirebaseAuthData are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-06-16
+
+### Added
+- **Account linking / provider bridging** — `linkProvider(_:)` drives the
+  provider's native sign-in and calls Firebase `user.link(with:)`, keeping the
+  same uid; re-authenticates and retries on `requiresRecentLogin`.
+  `unlinkProvider(_:)` calls `user.unlink(fromProvider:)`, guards against
+  removing the only sign-in method, and clears the matching Google/Facebook SDK
+  session.
+- **`reauthenticate(with:)`** — first-class re-auth via a shared
+  `freshCredential(for:)` factory (also reused by deletion and linking).
+- **Session** — `currentUser` maps the live Firebase user; `authStateStream()`
+  bridges `addStateDidChangeListener` to an `AsyncStream<AuthUser?>` and removes
+  the listener on termination.
+- **Email verification** — `sendEmailVerification()`.
+- **Profile & credential updates** — `updateDisplayName(_:)`,
+  `updateEmail(_:)` (verified-update flow via
+  `sendEmailVerification(beforeUpdatingEmail:)`), and `updatePassword(_:)`.
+- **Richer `AuthUser` mapping** — now populates `isEmailVerified` and
+  `linkedProviders` from Firebase `providerData`.
+
+### Changed
+- Bumped `AuthDomain` dependency to `from: "1.4.0"` for the new protocol surface.
+
+---
+
 ## [1.4.0] - 2026-06-16
 
 ### Added

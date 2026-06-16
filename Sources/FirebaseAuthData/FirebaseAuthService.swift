@@ -275,30 +275,7 @@ public final class FirebaseAuthService: AuthService {
     @MainActor
     private func reAuthenticateAndDelete(user: User) async throws {
         let providerID = user.providerData.first?.providerID ?? ""
-
-        let credential: AuthCredential
-        switch providerID {
-        case "apple.com":
-            let coordinator = AppleSignInCoordinator()
-            let apple = try await coordinator.signIn()
-            credential = OAuthProvider.appleCredential(
-                withIDToken: apple.idToken,
-                rawNonce: apple.rawNonce,
-                fullName: apple.fullName
-            )
-
-        case "google.com":
-            let coordinator = GoogleSignInCoordinator()
-            let google = try await coordinator.signIn()
-            credential = google.credential
-
-        case "facebook.com":
-            try Self.ensureFacebookSDKReady()
-            let coordinator = FacebookSignInCoordinator()
-            let fb = try await coordinator.signIn()
-            credential = fb.credential
-
-        default:
+        guard let provider = Self.provider(forID: providerID) else {
             // Email+password — Firebase handles re-auth internally when the
             // user is linked only to the password provider; we surface a clear
             // message asking them to sign in again.
@@ -308,6 +285,7 @@ public final class FirebaseAuthService: AuthService {
         }
 
         do {
+            let credential = try await freshCredential(for: provider)
             try await user.reauthenticate(with: credential)
             try await user.delete()
             GIDSignIn.sharedInstance.signOut()
@@ -317,11 +295,199 @@ public final class FirebaseAuthService: AuthService {
         }
     }
 
+    // MARK: - Credential factory
+
+    /// Drives the native sign-in flow for `provider` and returns a fresh
+    /// Firebase `AuthCredential`. Shared by re-authentication and linking.
+    @MainActor
+    private func freshCredential(for provider: SocialAuthProvider) async throws -> AuthCredential {
+        switch provider {
+        case .apple:
+            let apple = try await AppleSignInCoordinator().signIn()
+            return OAuthProvider.appleCredential(
+                withIDToken: apple.idToken,
+                rawNonce: apple.rawNonce,
+                fullName: apple.fullName
+            )
+        case .google:
+            return try await GoogleSignInCoordinator().signIn().credential
+        case .facebook:
+            try Self.ensureFacebookSDKReady()
+            return try await FacebookSignInCoordinator().signIn().credential
+        }
+    }
+
+    // MARK: - Session
+
+    public var currentUser: AuthUser? {
+        Auth.auth().currentUser.map { Self.mapUser($0) }
+    }
+
+    /// Bridges Firebase's `addStateDidChangeListener` to an `AsyncStream`.
+    /// Emits the current user immediately and on every subsequent change.
+    public func authStateStream() -> AsyncStream<AuthUser?> {
+        AsyncStream { continuation in
+            let handle = Auth.auth().addStateDidChangeListener { _, user in
+                continuation.yield(user.map { Self.mapUser($0) })
+            }
+            continuation.onTermination = { _ in
+                Auth.auth().removeStateDidChangeListener(handle)
+            }
+        }
+    }
+
+    // MARK: - Account linking / provider bridging
+
+    /// Links an additional social provider to the current account. Drives the
+    /// provider's native sign-in to obtain a fresh credential, then calls
+    /// Firebase's `user.link(with:)`. Re-authenticates and retries on
+    /// `requiresRecentLogin`.
+    @discardableResult
+    @MainActor
+    public func linkProvider(_ provider: SocialAuthProvider) async throws -> AuthUser {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to link an account.")
+        }
+        do {
+            let credential = try await freshCredential(for: provider)
+            do {
+                let result = try await user.link(with: credential)
+                return Self.mapUser(result.user)
+            } catch let error as NSError
+                where AuthErrorCode(rawValue: error.code) == .requiresRecentLogin {
+                let recent = try await freshCredential(for: provider)
+                try await user.reauthenticate(with: recent)
+                let result = try await user.link(with: credential)
+                return Self.mapUser(result.user)
+            }
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    /// Removes a linked social provider. Firebase requires at least one sign-in
+    /// method to remain on the account.
+    @discardableResult
+    @MainActor
+    public func unlinkProvider(_ provider: SocialAuthProvider) async throws -> AuthUser {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to unlink an account.")
+        }
+        let providerID = Self.providerID(for: provider)
+        guard user.providerData.count > 1 else {
+            throw AuthServiceError.message(
+                "Add another sign-in method before removing your only one."
+            )
+        }
+        do {
+            let updated = try await user.unlink(fromProvider: providerID)
+            // Clear the matching SDK session so it isn't silently reused.
+            if provider == .google { GIDSignIn.sharedInstance.signOut() }
+            if provider == .facebook { LoginManager().logOut() }
+            return Self.mapUser(updated)
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    /// Re-authenticates the current user with the given provider.
+    @MainActor
+    public func reauthenticate(with provider: SocialAuthProvider) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to re-authenticate.")
+        }
+        do {
+            let credential = try await freshCredential(for: provider)
+            try await user.reauthenticate(with: credential)
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    private static func providerID(for provider: SocialAuthProvider) -> String {
+        switch provider {
+        case .apple: return "apple.com"
+        case .google: return "google.com"
+        case .facebook: return "facebook.com"
+        }
+    }
+
+    // MARK: - Email verification
+
+    public func sendEmailVerification() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to verify your email.")
+        }
+        do {
+            try await user.sendEmailVerification()
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    // MARK: - Profile & credential updates
+
+    public func updateDisplayName(_ name: String) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to update your profile.")
+        }
+        do {
+            let change = user.createProfileChangeRequest()
+            change.displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await change.commitChanges()
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    public func updateEmail(_ email: String) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to update your email.")
+        }
+        do {
+            // sendEmailVerification(beforeUpdatingEmail:) is the modern,
+            // verified flow; Firebase updates the address once confirmed.
+            try await user.sendEmailVerification(beforeUpdatingEmail: email)
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
+    public func updatePassword(_ password: String) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthServiceError.message("You must be signed in to update your password.")
+        }
+        do {
+            try await user.updatePassword(to: password)
+        } catch {
+            throw AuthServiceError.from(error)
+        }
+    }
+
     // MARK: - Mapping
 
     private static func mapUser(_ user: User, fallbackName: String? = nil) -> AuthUser {
         let name = user.displayName?.nonEmpty ?? fallbackName?.nonEmpty
-        return AuthUser(id: user.uid, email: user.email, displayName: name)
+        return AuthUser(id: user.uid,
+                        email: user.email,
+                        displayName: name,
+                        isEmailVerified: user.isEmailVerified,
+                        linkedProviders: linkedProviders(of: user))
+    }
+
+    /// Maps Firebase `providerData` IDs to `SocialAuthProvider`. Email+password
+    /// (`password`) and phone are intentionally excluded.
+    private static func linkedProviders(of user: User) -> [SocialAuthProvider] {
+        user.providerData.compactMap { Self.provider(forID: $0.providerID) }
+    }
+
+    private static func provider(forID id: String) -> SocialAuthProvider? {
+        switch id {
+        case "apple.com": return .apple
+        case "google.com": return .google
+        case "facebook.com": return .facebook
+        default: return nil
+        }
     }
 
     private static func formattedName(_ components: PersonNameComponents?) -> String? {
