@@ -4,6 +4,16 @@ import FirebaseAuth
 import FirebaseCore
 import GoogleSignIn
 import FacebookLogin
+import os
+
+/// Package-local Unified Logging channel for FirebaseAuthData.
+///
+/// This package depends on `AuthDomain` (a standalone, independently-versioned
+/// package), not on the app's `Domain`, so it deliberately does not reach for
+/// `Domain.AppLogger`. Routing through `os.Logger` keeps the package
+/// self-contained while still landing in Console.app with structured levels,
+/// category filtering, and privacy redaction.
+private let authLog = Logger(subsystem: "FeatureAuth-Dev.FirebaseAuthData", category: "Auth")
 
 /// A Firebase-backed implementation of `AuthService`.
 ///
@@ -30,7 +40,7 @@ public final class FirebaseAuthService: AuthService {
     public static func configure() {
         guard FirebaseApp.app() == nil else { return }
         guard let plistURL = Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") else {
-            NSLog("FirebaseAuthService: GoogleService-Info.plist not found — Firebase not configured.")
+            authLog.error("🔐 ❌ GoogleService-Info.plist not found — Firebase not configured.")
             return
         }
 
@@ -43,7 +53,7 @@ public final class FirebaseAuthService: AuthService {
            let clientID = plistDict["CLIENT_ID"] as? String {
             GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
         } else {
-            NSLog("FirebaseAuthService: CLIENT_ID missing from GoogleService-Info.plist — Google Sign-In won't work.")
+            authLog.error("🔐 ❌ CLIENT_ID missing from GoogleService-Info.plist — Google Sign-In won't work.")
         }
 
         // Facebook SDK is initialised lazily on first use — NOT at launch.
@@ -62,7 +72,7 @@ public final class FirebaseAuthService: AuthService {
         guard !facebookSDKReady else { return }
         let fbAppID = Bundle.main.object(forInfoDictionaryKey: "FacebookAppID") as? String ?? ""
         let fbToken = Bundle.main.object(forInfoDictionaryKey: "FacebookClientToken") as? String ?? ""
-        NSLog("FirebaseAuthService: FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?")' appID='\(fbAppID)' tokenLen=\(fbToken.count)")
+        authLog.debug("🔐 🐛 FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?", privacy: .public)' appID='\(fbAppID, privacy: .public)' tokenLen=\(fbToken.count, privacy: .public)")
         guard !fbAppID.isEmpty, !fbToken.isEmpty else {
             throw AuthServiceError.message("Facebook Sign-In is not configured (missing plist keys).")
         }
@@ -71,7 +81,7 @@ public final class FirebaseAuthService: AuthService {
             didFinishLaunchingWithOptions: nil
         )
         facebookSDKReady = true
-        NSLog("FirebaseAuthService: Facebook SDK ready.")
+        authLog.info("🔐 ℹ️ Facebook SDK ready.")
     }
 
     /// No-op at launch — Facebook SDK is initialised lazily on first sign-in.
@@ -81,7 +91,7 @@ public final class FirebaseAuthService: AuthService {
         application: UIApplication,
         launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) {
-        NSLog("FirebaseAuthService: Facebook init deferred to first sign-in attempt.")
+        authLog.debug("🔐 🐛 Facebook init deferred to first sign-in attempt.")
     }
 
     /// Forward URL callbacks (Facebook OAuth redirect).
