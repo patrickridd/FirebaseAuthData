@@ -6,6 +6,15 @@ import GoogleSignIn
 import FacebookLogin
 import os
 
+public extension Notification.Name {
+    /// Posted after the signed-in user's profile (e.g. display name) is
+    /// updated. Firebase's auth-state listener does *not* fire for profile
+    /// changes, so this package posts an explicit notification to let observers
+    /// refresh derived UI such as the dashboard hero header and toolbar avatar.
+    /// The `object` is the updated ``AuthUser`` when available.
+    static let authUserProfileDidChange = Notification.Name("FirebaseAuthData.authUserProfileDidChange")
+}
+
 /// Package-local Unified Logging channel for FirebaseAuthData.
 ///
 /// This package depends on `AuthDomain` (a standalone, independently-versioned
@@ -454,6 +463,15 @@ public final class FirebaseAuthService: AuthService {
             let change = user.createProfileChangeRequest()
             change.displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             try await change.commitChanges()
+            // Firebase's state-did-change listener does not fire for profile
+            // updates, so broadcast an explicit notification. Observers (e.g.
+            // the dashboard hero header) refresh their derived name from it.
+            let updated = Self.mapUser(user)
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .authUserProfileDidChange, object: updated
+                )
+            }
         } catch {
             throw AuthServiceError.from(error)
         }
