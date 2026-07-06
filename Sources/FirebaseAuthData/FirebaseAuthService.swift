@@ -72,7 +72,7 @@ public final class FirebaseAuthService: AuthService {
         guard !facebookSDKReady else { return }
         let fbAppID = Bundle.main.object(forInfoDictionaryKey: "FacebookAppID") as? String ?? ""
         let fbToken = Bundle.main.object(forInfoDictionaryKey: "FacebookClientToken") as? String ?? ""
-        authLog.debug("🔐 🐛 FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?", privacy: .public)' appID='\(fbAppID, privacy: .public)' tokenLen=\(fbToken.count, privacy: .public)")
+        authLog.debug("🔐 💬 FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?", privacy: .public)' appID='\(fbAppID, privacy: .public)' tokenLen=\(fbToken.count, privacy: .public)")
         guard !fbAppID.isEmpty, !fbToken.isEmpty else {
             throw AuthServiceError.message("Facebook Sign-In is not configured (missing plist keys).")
         }
@@ -91,7 +91,7 @@ public final class FirebaseAuthService: AuthService {
         application: UIApplication,
         launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) {
-        authLog.debug("🔐 🐛 Facebook init deferred to first sign-in attempt.")
+        authLog.debug("🔐 💬 Facebook init deferred to first sign-in attempt.")
     }
 
     /// Forward URL callbacks (Facebook OAuth redirect).
