@@ -44,7 +44,7 @@ final class AppleSignInCoordinator: NSObject {
     // MARK: - Nonce
 
     /// A cryptographically secure random string used to protect against replay.
-    private static func randomNonce(length: Int = 32) -> String {
+    static func randomNonce(length: Int = 32) -> String {
         precondition(length > 0)
         let charset: [Character] =
             Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
@@ -67,6 +67,13 @@ final class AppleSignInCoordinator: NSObject {
         return hashed.map { String(format: "%02x", $0) }.joined()
     }
 }
+
+#if DEBUG
+extension AppleSignInCoordinator {
+    /// Test-only exposure of the SHA-256 helper.
+    static func sha256Hex(_ input: String) -> String { sha256(input) }
+}
+#endif
 
 // MARK: - ASAuthorizationControllerDelegate
 
