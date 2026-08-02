@@ -79,10 +79,10 @@ public final class FirebaseAuthService: AuthService {
     @MainActor
     static func ensureFacebookSDKReady() throws {
         guard !facebookSDKReady else { return }
-        let fbAppID = Bundle.main.object(forInfoDictionaryKey: "FacebookAppID") as? String ?? ""
-        let fbToken = Bundle.main.object(forInfoDictionaryKey: "FacebookClientToken") as? String ?? ""
-        authLog.debug("🔐 💬 FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?", privacy: .public)' appID='\(fbAppID, privacy: .public)' tokenLen=\(fbToken.count, privacy: .public)")
-        guard !fbAppID.isEmpty, !fbToken.isEmpty else {
+        let facebookAppID = Bundle.main.object(forInfoDictionaryKey: "FacebookAppID") as? String ?? ""
+        let facebookToken = Bundle.main.object(forInfoDictionaryKey: "FacebookClientToken") as? String ?? ""
+        authLog.debug("🔐 💬 FB lazy init bundleID='\(Bundle.main.bundleIdentifier ?? "?", privacy: .public)' appID='\(facebookAppID, privacy: .public)' tokenLen=\(facebookToken.count, privacy: .public)")
+        guard !facebookAppID.isEmpty, !facebookToken.isEmpty else {
             throw AuthServiceError.message("Facebook Sign-In is not configured (missing plist keys).")
         }
         ApplicationDelegate.shared.application(
@@ -170,14 +170,14 @@ public final class FirebaseAuthService: AuthService {
         do {
             try Self.ensureFacebookSDKReady()
             let coordinator = FacebookSignInCoordinator()
-            let fb = try await coordinator.signIn()
-            let result = try await Auth.auth().signIn(with: fb.credential)
-            if result.user.displayName?.nonEmpty == nil, let name = fb.displayName {
+            let facebook = try await coordinator.signIn()
+            let result = try await Auth.auth().signIn(with: facebook.credential)
+            if result.user.displayName?.nonEmpty == nil, let name = facebook.displayName {
                 let change = result.user.createProfileChangeRequest()
                 change.displayName = name
                 try await change.commitChanges()
             }
-            return Self.mapUser(result.user, fallbackName: fb.displayName)
+            return Self.mapUser(result.user, fallbackName: facebook.displayName)
         } catch {
             throw AuthServiceError.from(error)
         }
